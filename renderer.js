@@ -13,10 +13,12 @@ const SHAPES_DATA = [
     { shape: [[1, 1, 1], [1, 0, 0], [1, 0, 0]], color: '#FF66CC' },
     { shape: [[1, 1, 1], [0, 1, 0]], color: '#00FF00' }
 ];
+const LOOKAHEAD_DEPTH = 4;
 
 let grid = Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill(null));
 let usableBlocks = [];
 let previewBlocks = [];
+let shapeBag = [];
 let score = 0;
 let highScore = localStorage.getItem('blockGameHighScore') || 0;
 
@@ -28,10 +30,150 @@ let dragClone = null;
 let currentPreviewTarget = null;
 let isTouchDrag = false;
 
-function getRandomShape() {
-    return SHAPES_DATA[Math.floor(Math.random() * SHAPES_DATA.length)];
+// 新增：DFS 深度優先搜尋 (3步存活預判)
+
+// 1. 虛擬棋盤深拷貝
+function cloneGrid(targetGrid) {
+    return targetGrid.map(row => [...row]);
 }
 
+// 2. 在虛擬棋盤上模擬放置與消除
+function simulatePlacementVirtual(virtualGrid, shapeArr, r, c) {
+    let newGrid = cloneGrid(virtualGrid);
+
+    // 放置方塊 (用 1 標記)
+    for (let sr = 0; sr < shapeArr.length; sr++) {
+        for (let sc = 0; sc < shapeArr[sr].length; sc++) {
+            if (shapeArr[sr][sc]) {
+                newGrid[r + sr][c + sc] = 1;
+            }
+        }
+    }
+
+    // 模擬消除
+    let rowsToClear = [];
+    let colsToClear = [];
+    for (let i = 0; i < GRID_SIZE; i++) {
+        if (newGrid[i].every(val => val !== null && val !== 0)) rowsToClear.push(i);
+        if (newGrid.every(row => row[i] !== null && row[i] !== 0)) colsToClear.push(i);
+    }
+
+    rowsToClear.forEach(rowIdx => {
+        for (let j = 0; j < GRID_SIZE; j++) newGrid[rowIdx][j] = null;
+    });
+    colsToClear.forEach(colIdx => {
+        for (let j = 0; j < GRID_SIZE; j++) newGrid[j][colIdx] = null;
+    });
+
+    return newGrid;
+}
+
+// 3. 虛擬棋盤的碰撞判定
+function isValidOnVirtual(virtualGrid, shapeArr, startR, startC) {
+    for (let r = 0; r < shapeArr.length; r++) {
+        for (let c = 0; c < shapeArr[r].length; c++) {
+            if (shapeArr[r][c]) {
+                const boardR = startR + r;
+                const boardC = startC + c;
+                if (boardR < 0 || boardR >= GRID_SIZE || boardC < 0 || boardC >= GRID_SIZE) return false;
+                if (virtualGrid[boardR][boardC] !== null && virtualGrid[boardR][boardC] !== 0) return false;
+            }
+        }
+    }
+    return true;
+}
+
+// 4. DFS 回溯遞迴核心：尋找是否存在一條活路
+function canSurviveInFuture(currentGrid, availableBlocks, depthLeft) {
+    // 成功活過指定的步數，代表這條時間線可行
+    if (depthLeft === 0) return true;
+
+    for (let i = 0; i < availableBlocks.length; i++) {
+        const block = availableBlocks[i];
+        if (!block) continue;
+
+        for (let r = 0; r < GRID_SIZE; r++) {
+            for (let c = 0; c < GRID_SIZE; c++) {
+                if (isValidOnVirtual(currentGrid, block.shape, r, c)) {
+                    const nextGrid = simulatePlacementVirtual(currentGrid, block.shape, r, c);
+                    let nextAvailable = [...availableBlocks];
+                    nextAvailable.splice(i, 1);
+
+                    // 進入下一步，只要有一條分支存活，就一路回傳 true
+                    if (canSurviveInFuture(nextGrid, nextAvailable, depthLeft - 1)) {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    // 所有組合都死路一條
+    return false;
+}
+
+// ==========================================
+// 結合「抽籤袋」與「DFS 預判救援」邏輯
+// ==========================================
+
+
+// 將 10 種方塊的索引 (0~9) 裝進袋子並洗牌
+function fillBag() {
+    shapeBag = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+    for (let i = shapeBag.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shapeBag[i], shapeBag[j]] = [shapeBag[j], shapeBag[i]];
+    }
+}
+
+// 覆蓋原本的 getRandomShape 函數
+function getRandomShape() {
+    // 1. 如果袋子空了，重新裝滿並洗牌
+    if (shapeBag.length === 0) {
+        fillBag();
+    }
+
+    // 2. 從袋子裡抽出一個候選方塊
+    let candidateIndex = shapeBag.pop();
+    let candidate = SHAPES_DATA[candidateIndex];
+
+    // 初始化階段直接給方塊
+    if (usableBlocks.length === 0) return candidate;
+
+    let knownFutureBlocks = [...usableBlocks, ...previewBlocks, candidate].filter(b => b !== null);
+    let testBlocks = knownFutureBlocks.slice(0, LOOKAHEAD_DEPTH);
+
+    // 3. 測試這個候選方塊會不會死
+    if (canSurviveInFuture(grid, testBlocks, testBlocks.length)) {
+        return candidate;
+    }
+
+    // 4. 如果會死，啟動「有限的」救援機制：
+    // 只在「袋子裡剩下的方塊」中尋找有沒有能活命的
+    let safeIndexInBag = -1;
+    for (let i = 0; i < shapeBag.length; i++) {
+        let testIndex = shapeBag[i];
+        let testShape = SHAPES_DATA[testIndex];
+        let testPlayable = [...usableBlocks, ...previewBlocks, testShape].filter(b => b !== null).slice(0, LOOKAHEAD_DEPTH);
+
+        if (canSurviveInFuture(grid, testPlayable, testPlayable.length)) {
+            safeIndexInBag = i;
+            break; // 找到第一個能救命的就停止
+        }
+    }
+
+    // 5. 如果在剩下的袋子裡找到了救命方塊
+    if (safeIndexInBag !== -1) {
+        // 將救命方塊與剛剛那個會死的方塊「交換」
+        // 也就是把會死的方塊塞回袋子裡，晚點再面對它
+        let safeShape = SHAPES_DATA[shapeBag[safeIndexInBag]];
+        shapeBag[safeIndexInBag] = candidateIndex;
+        return safeShape;
+    }
+
+    // 6. 如果袋子裡剩下的方塊全都會死 (例如只剩大方塊，且盤面太亂)
+    // 救援失敗，玩家必須接受 Game Over 的命運
+    return candidate;
+}
 function init() {
     usableBlocks = [];
     previewBlocks = [];
@@ -349,6 +491,7 @@ document.getElementById('restart-btn').addEventListener('click', () => {
     grid = Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill(null));
     score = 0;
     currentCombo = 0;
+    shapeBag = [];
     updateScore(0);
     document.getElementById('game-over').classList.add('hidden');
     init();
