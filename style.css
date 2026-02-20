@@ -1,0 +1,225 @@
+body {
+    background-color: #1e1e1e;
+    color: #ffffff;
+    font-family: 'Arial', sans-serif;
+    display: flex;
+    justify-content: center;
+    margin: 0;
+    padding: 20px;
+    user-select: none;
+    overflow: hidden;
+}
+
+.container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+    position: relative;
+}
+
+.header {
+    font-size: 28px;
+    font-weight: bold;
+    color: #ffcc00;
+}
+
+.board {
+    display: grid;
+    grid-template-columns: repeat(8, 40px);
+    grid-template-rows: repeat(8, 40px);
+    gap: 2px;
+    background-color: #3c3c3c;
+    padding: 2px;
+    border-radius: 4px;
+    position: relative;
+}
+
+.cell {
+    width: 40px;
+    height: 40px;
+    background-color: #2c2c2c;
+    border-radius: 2px;
+    transition: background-color 0.1s;
+}
+
+.section-title {
+    font-size: 16px;
+    align-self: flex-start;
+    margin-left: 10px;
+    margin-bottom: -10px;
+    color: #aaaaaa;
+}
+
+.block-area {
+    display: flex;
+    gap: 20px;
+    height: 100px;
+    position: relative;
+}
+
+.shape-container {
+    width: 90px;
+    height: 90px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    cursor: grab;
+    transition: transform 0.2s ease;
+}
+
+.preview .shape-container {
+    cursor: default;
+    filter: saturate(0.2) opacity(0.6);
+}
+
+.drag-clone {
+    position: fixed;
+    pointer-events: none;
+    z-index: 100;
+    transform: translate(-50%, -50%) scale(1.2);
+    filter: drop-shadow(0px 10px 15px rgba(0, 0, 0, 0.5));
+}
+
+.mini-shape {
+    display: grid;
+    gap: 2px;
+}
+
+.mini-cell {
+    width: 20px;
+    height: 20px;
+    border-radius: 2px;
+}
+
+/* 碎裂掉落動畫粒子 */
+.particle {
+    position: fixed;
+    width: 20px;
+    height: 20px;
+    border-radius: 2px;
+    pointer-events: none;
+    z-index: 50;
+    animation: shatter 0.6s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+@keyframes shatter {
+    0% {
+        transform: translate(0, 0) scale(1) rotate(0deg);
+        opacity: 1;
+    }
+
+    100% {
+        transform: translate(var(--tx), var(--ty)) scale(0.5) rotate(var(--rot));
+        opacity: 0;
+    }
+}
+
+/* 修正後的補上動畫 (只針對新出現的方塊) */
+.slide-in {
+    animation: slideInFromRight 0.3s ease-out forwards;
+}
+
+@keyframes slideInFromRight {
+    0% {
+        transform: translateX(50px) scale(0.8);
+        opacity: 0;
+    }
+
+    100% {
+        transform: translateX(0) scale(1);
+        opacity: 1;
+    }
+}
+
+/* 遊戲結束疊層 */
+.overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    border-radius: 8px;
+}
+
+.overlay.hidden {
+    display: none;
+}
+
+.overlay h2 {
+    color: #ff3366;
+    font-size: 36px;
+    margin-bottom: 10px;
+}
+
+.overlay p {
+    font-size: 20px;
+    margin: 5px 0;
+    color: #fff;
+}
+
+#restart-btn {
+    margin-top: 20px;
+    padding: 10px 20px;
+    font-size: 18px;
+    cursor: pointer;
+    background-color: #0096ff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+#restart-btn:hover {
+    background-color: #0077cc;
+}
+
+/* 連擊浮動文字動畫 */
+.combo-text {
+    position: absolute;
+    top: 40%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 48px;
+    font-weight: bold;
+    color: #ffaa00;
+    text-shadow: 2px 2px 0 #000,
+        -2px -2px 0 #000,
+        2px -2px 0 #000,
+        -2px 2px 0 #000,
+        0px 0px 15px rgba(255, 170, 0, 0.8);
+    pointer-events: none;
+    z-index: 300;
+    opacity: 0;
+    /* 彈出並向上浮動消散的動畫 */
+    animation: popUpFade 1.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes popUpFade {
+    0% {
+        transform: translate(-50%, -30%) scale(0.5);
+        opacity: 0;
+    }
+
+    20% {
+        transform: translate(-50%, -50%) scale(1.2);
+        opacity: 1;
+    }
+
+    70% {
+        transform: translate(-50%, -60%) scale(1);
+        opacity: 1;
+    }
+
+    100% {
+        transform: translate(-50%, -80%) scale(0.8);
+        opacity: 0;
+    }
+}

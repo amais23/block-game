@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>8x8 方塊遊戲</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="score-board">Score: <span id="score">0</span></div>
+        </div>
+
+        <div id="board" class="board"></div>
+
+        <div class="section-title">Usable Blocks</div>
+        <div id="usable-area" class="block-area"></div>
+
+        <div class="section-title">Preview Area</div>
+        <div id="preview-area" class="block-area preview"></div>
+
+        <div id="game-over" class="overlay hidden">
+            <h2>Game Over</h2>
+            <p>Score: <span id="final-score">0</span></p>
+            <p>High Score: <span id="high-score">0</span></p>
+            <button id="restart-btn">重新開始</button>
+        </div>
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+
+</html>
