@@ -1,5 +1,6 @@
 const GRID_SIZE = 8;
 const CELL_SIZE = 42;
+const LOOKAHEAD_DEPTH = 3;
 
 const SHAPES_DATA = [
     { shape: [[1]], color: '#FF3366' },
@@ -13,23 +14,78 @@ const SHAPES_DATA = [
     { shape: [[1, 1, 1], [1, 0, 0], [1, 0, 0]], color: '#FF66CC' },
     { shape: [[1, 1, 1], [0, 1, 0]], color: '#00FF00' }
 ];
-const LOOKAHEAD_DEPTH = 4;
 
 let grid = Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill(null));
 let usableBlocks = [];
 let previewBlocks = [];
-let shapeBag = [];
 let score = 0;
-let highScore = localStorage.getItem('blockGameHighScore') || 0;
-
-// 新增：連擊追蹤變數
 let currentCombo = 0;
+
+// 新增：模式與分開記錄的最高分
+let currentMode = 'normal';
+let highScores = {
+    easy: parseInt(localStorage.getItem('blockGameHighScore_easy')) || 0,
+    normal: parseInt(localStorage.getItem('blockGameHighScore_normal')) || 0
+};
 
 let draggingData = null;
 let dragClone = null;
 let currentPreviewTarget = null;
 let isTouchDrag = false;
 
+// ==========================================
+// 結合兩種模式的生成邏輯
+// ==========================================
+let shapeBag = [];
+
+function fillBag() {
+    shapeBag = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+    for (let i = shapeBag.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shapeBag[i], shapeBag[j]] = [shapeBag[j], shapeBag[i]];
+    }
+}
+
+function getRandomShape() {
+    // 【普通模式】：完全隨機，無袋子、無 DFS 救援
+    if (currentMode === 'normal') {
+        return SHAPES_DATA[Math.floor(Math.random() * SHAPES_DATA.length)];
+    }
+
+    // 【簡單模式】：有限物資的 DFS 救援
+    if (shapeBag.length === 0) fillBag();
+
+    let candidateIndex = shapeBag.pop();
+    let candidate = SHAPES_DATA[candidateIndex];
+
+    if (usableBlocks.length === 0) return candidate;
+
+    let knownFutureBlocks = [...usableBlocks, ...previewBlocks, candidate].filter(b => b !== null);
+    let testBlocks = knownFutureBlocks.slice(0, LOOKAHEAD_DEPTH);
+
+    if (canSurviveInFuture(grid, testBlocks, testBlocks.length)) {
+        return candidate;
+    }
+
+    let safeIndexInBag = -1;
+    for (let i = 0; i < shapeBag.length; i++) {
+        let testIndex = shapeBag[i];
+        let testPlayable = [...usableBlocks, ...previewBlocks, SHAPES_DATA[testIndex]].filter(b => b !== null).slice(0, LOOKAHEAD_DEPTH);
+
+        if (canSurviveInFuture(grid, testPlayable, testPlayable.length)) {
+            safeIndexInBag = i;
+            break;
+        }
+    }
+
+    if (safeIndexInBag !== -1) {
+        let safeShape = SHAPES_DATA[shapeBag[safeIndexInBag]];
+        shapeBag[safeIndexInBag] = candidateIndex;
+        return safeShape;
+    }
+
+    return candidate;
+}
 // 新增：DFS 深度優先搜尋 (3步存活預判)
 
 // 1. 虛擬棋盤深拷貝
@@ -109,81 +165,6 @@ function canSurviveInFuture(currentGrid, availableBlocks, depthLeft) {
     }
     // 所有組合都死路一條
     return false;
-}
-
-// ==========================================
-// 結合「抽籤袋」與「DFS 預判救援」邏輯
-// ==========================================
-
-
-// 將 10 種方塊的索引 (0~9) 裝進袋子並洗牌
-function fillBag() {
-    shapeBag = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-    for (let i = shapeBag.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shapeBag[i], shapeBag[j]] = [shapeBag[j], shapeBag[i]];
-    }
-}
-
-// 覆蓋原本的 getRandomShape 函數
-function getRandomShape() {
-    // 1. 如果袋子空了，重新裝滿並洗牌
-    if (shapeBag.length === 0) {
-        fillBag();
-    }
-
-    // 2. 從袋子裡抽出一個候選方塊
-    let candidateIndex = shapeBag.pop();
-    let candidate = SHAPES_DATA[candidateIndex];
-
-    // 初始化階段直接給方塊
-    if (usableBlocks.length === 0) return candidate;
-
-    let knownFutureBlocks = [...usableBlocks, ...previewBlocks, candidate].filter(b => b !== null);
-    let testBlocks = knownFutureBlocks.slice(0, LOOKAHEAD_DEPTH);
-
-    // 3. 測試這個候選方塊會不會死
-    if (canSurviveInFuture(grid, testBlocks, testBlocks.length)) {
-        return candidate;
-    }
-
-    // 4. 如果會死，啟動「有限的」救援機制：
-    // 只在「袋子裡剩下的方塊」中尋找有沒有能活命的
-    let safeIndexInBag = -1;
-    for (let i = 0; i < shapeBag.length; i++) {
-        let testIndex = shapeBag[i];
-        let testShape = SHAPES_DATA[testIndex];
-        let testPlayable = [...usableBlocks, ...previewBlocks, testShape].filter(b => b !== null).slice(0, LOOKAHEAD_DEPTH);
-
-        if (canSurviveInFuture(grid, testPlayable, testPlayable.length)) {
-            safeIndexInBag = i;
-            break; // 找到第一個能救命的就停止
-        }
-    }
-
-    // 5. 如果在剩下的袋子裡找到了救命方塊
-    if (safeIndexInBag !== -1) {
-        // 將救命方塊與剛剛那個會死的方塊「交換」
-        // 也就是把會死的方塊塞回袋子裡，晚點再面對它
-        let safeShape = SHAPES_DATA[shapeBag[safeIndexInBag]];
-        shapeBag[safeIndexInBag] = candidateIndex;
-        return safeShape;
-    }
-
-    // 6. 如果袋子裡剩下的方塊全都會死 (例如只剩大方塊，且盤面太亂)
-    // 救援失敗，玩家必須接受 Game Over 的命運
-    return candidate;
-}
-function init() {
-    usableBlocks = [];
-    previewBlocks = [];
-    currentCombo = 0; // 初始化連擊
-    for (let i = 0; i < 3; i++) {
-        usableBlocks.push(getRandomShape());
-        previewBlocks.push(getRandomShape());
-    }
-    renderBoard();
-    renderBlocks();
 }
 
 function updateScore(points) {
@@ -476,27 +457,52 @@ function checkGameOver() {
     }
 }
 
-function showGameOver() {
-    if (score > highScore) {
-        highScore = score;
-        localStorage.setItem('blockGameHighScore', highScore);
-    }
-    document.getElementById('final-score').innerText = score;
-    document.getElementById('high-score').innerText = highScore;
-    document.getElementById('game-over').classList.remove('hidden');
-}
+function startGame(mode) {
+    currentMode = mode;
+    document.getElementById('start-screen').classList.add('hidden');
+    document.getElementById('game-over').classList.add('hidden');
 
-// 重新開始時也要重置連擊數
-document.getElementById('restart-btn').addEventListener('click', () => {
+    // 初始化盤面與狀態
     grid = Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill(null));
     score = 0;
     currentCombo = 0;
     shapeBag = [];
+    usableBlocks = [];
+    previewBlocks = [];
     updateScore(0);
+
+    for (let i = 0; i < 3; i++) {
+        usableBlocks.push(getRandomShape());
+        previewBlocks.push(getRandomShape());
+    }
+    renderBoard();
+    renderBlocks();
+}
+
+function showGameOver() {
+    // 儲存當前模式的最高分
+    if (score > highScores[currentMode]) {
+        highScores[currentMode] = score;
+        localStorage.setItem(`blockGameHighScore_${currentMode}`, score);
+    }
+
+    // 更新結算畫面數值
+    document.getElementById('final-score').innerText = score;
+    document.getElementById('high-score').innerText = highScores[currentMode];
+    document.getElementById('mode-label').innerText = currentMode === 'easy' ? '簡單' : '普通';
+
+    document.getElementById('game-over').classList.remove('hidden');
+}
+
+// 綁定所有按鈕事件
+document.getElementById('btn-easy').addEventListener('click', () => startGame('easy'));
+document.getElementById('btn-normal').addEventListener('click', () => startGame('normal'));
+document.getElementById('restart-btn').addEventListener('click', () => startGame(currentMode));
+document.getElementById('menu-btn').addEventListener('click', () => {
     document.getElementById('game-over').classList.add('hidden');
-    init();
+    document.getElementById('start-screen').classList.remove('hidden');
 });
 
+// 全域拖曳監聽
 document.addEventListener('pointermove', onDragMove);
 document.addEventListener('pointerup', onDragEnd);
-init();

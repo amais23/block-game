@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport"
         content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>8x8 方塊遊戲</title>
+    <title>方塊遊戲(amais23)</title>
     <link rel="stylesheet" href="style.css">
 </head>
 
@@ -26,8 +26,20 @@
         <div id="game-over" class="overlay hidden">
             <h2>Game Over</h2>
             <p>Score: <span id="final-score">0</span></p>
-            <p>High Score: <span id="high-score">0</span></p>
-            <button id="restart-btn">重新開始</button>
+            <p>最高分數 (<span id="mode-label">普通</span>): <span id="high-score">0</span></p>
+            <div class="btn-group">
+                <button id="restart-btn" class="action-btn">再玩一次</button>
+                <button id="menu-btn" class="action-btn menu-btn">回主選單</button>
+            </div>
+        </div>
+
+        <div id="start-screen" class="overlay">
+            <h1>8x8 方塊遊戲</h1>
+            <p>請選擇遊戲難度：</p>
+            <div class="btn-group">
+                <button id="btn-easy" class="mode-btn">🟢 簡單模式</button>
+                <button id="btn-normal" class="mode-btn">🔴 普通模式</button>
+            </div>
         </div>
     </div>
 

@@ -225,3 +225,71 @@ body {
         opacity: 0;
     }
 }
+
+/* 主選單標題與按鈕群組 */
+.overlay h1 {
+    color: #0096ff;
+    font-size: 42px;
+    margin-bottom: 20px;
+    text-shadow: 0 4px 10px rgba(0, 150, 255, 0.5);
+}
+
+.btn-group {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-top: 20px;
+    width: 80%;
+    max-width: 300px;
+}
+
+/* 共用按鈕樣式 */
+.mode-btn,
+.action-btn {
+    padding: 15px;
+    font-size: 18px;
+    cursor: pointer;
+    border: none;
+    border-radius: 8px;
+    transition: all 0.2s;
+    font-weight: bold;
+    text-align: center;
+}
+
+/* 模式選擇按鈕 */
+.mode-btn {
+    background-color: #33ccff;
+    color: #1e1e1e;
+}
+
+.mode-btn:hover {
+    background-color: #0096ff;
+    color: white;
+    transform: scale(1.05);
+}
+
+.mode-btn:nth-child(2) {
+    background-color: #ff6666;
+}
+
+.mode-btn:nth-child(2):hover {
+    background-color: #ff3333;
+}
+
+/* 結算畫面按鈕 */
+.action-btn {
+    background-color: #0096ff;
+    color: white;
+}
+
+.action-btn:hover {
+    background-color: #0077cc;
+}
+
+.menu-btn {
+    background-color: #555555;
+}
+
+.menu-btn:hover {
+    background-color: #777777;
+}
