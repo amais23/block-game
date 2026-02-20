@@ -8,6 +8,7 @@ body {
     padding: 20px;
     user-select: none;
     overflow: hidden;
+    touch-action: none;
 }
 
 .container {
@@ -67,6 +68,7 @@ body {
     border-radius: 8px;
     cursor: grab;
     transition: transform 0.2s ease;
+    touch-action: none;
 }
 
 .preview .shape-container {

@@ -26,6 +26,7 @@ let currentCombo = 0;
 let draggingData = null;
 let dragClone = null;
 let currentPreviewTarget = null;
+let isTouchDrag = false;
 
 function getRandomShape() {
     return SHAPES_DATA[Math.floor(Math.random() * SHAPES_DATA.length)];
@@ -122,11 +123,19 @@ function renderBlocks(animateLast = false) {
 
 function startDrag(e, index, blockData, sourceEl) {
     draggingData = { index, blockData };
+
+    // 判斷當前的輸入方式是否為觸控或觸控筆
+    isTouchDrag = (e.pointerType === 'touch' || e.pointerType === 'pen');
+
     dragClone = sourceEl.cloneNode(true);
     dragClone.className = 'drag-clone';
     document.body.appendChild(dragClone);
     sourceEl.style.opacity = '0';
-    moveClone(e.clientX, e.clientY);
+
+    // 第一次點擊時，就根據設備決定是否要加上 Y 軸偏移量
+    const targetX = e.clientX;
+    const targetY = isTouchDrag ? e.clientY - 80 : e.clientY;
+    moveClone(targetX, targetY);
 }
 
 function moveClone(x, y) {
@@ -134,7 +143,6 @@ function moveClone(x, y) {
     dragClone.style.left = `${x}px`;
     dragClone.style.top = `${y}px`;
 }
-
 function getSnappingTarget(shapeArr, mouseX, mouseY) {
     const boardEl = document.getElementById('board');
     const rect = boardEl.getBoundingClientRect();
@@ -153,15 +161,21 @@ function getSnappingTarget(shapeArr, mouseX, mouseY) {
 
 function onDragMove(e) {
     if (!draggingData) return;
-    moveClone(e.clientX, e.clientY);
-    const target = getSnappingTarget(draggingData.blockData.shape, e.clientX, e.clientY);
+
+    // 如果是觸控，視覺座標向上提 80px，避開手指
+    const targetX = e.clientX;
+    const targetY = isTouchDrag ? e.clientY - 80 : e.clientY;
+
+    moveClone(targetX, targetY);
+
+    // 磁吸判定的座標也要使用偏移後的 Y，這樣預覽區塊才會準確對齊浮空的方塊
+    const target = getSnappingTarget(draggingData.blockData.shape, targetX, targetY);
 
     if (!currentPreviewTarget || !target || currentPreviewTarget.r !== target.r || currentPreviewTarget.c !== target.c) {
         currentPreviewTarget = target;
         renderBoard(target, draggingData.blockData);
     }
 }
-
 function onDragEnd(e) {
     if (!draggingData) return;
 
