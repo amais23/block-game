@@ -246,32 +246,69 @@ function renderBlocks(animateLast = false) {
 
 function startDrag(e, index, blockData, sourceEl) {
     draggingData = { index, blockData };
-
-    // 判斷當前的輸入方式是否為觸控或觸控筆
     isTouchDrag = (e.pointerType === 'touch' || e.pointerType === 'pen');
 
-    dragClone = sourceEl.cloneNode(true);
-    dragClone.className = 'drag-clone';
+    // 1. 只抓取內部實體的 mini-shape
+    const originalMini = sourceEl.querySelector('.mini-shape');
+
+    // 2. ✨ 核心關鍵：在它還沒被拔起來之前，先測量它「最真實、未變形」的物理長寬！
+    const rect = originalMini.getBoundingClientRect();
+
+    // 3. 複製它
+    dragClone = originalMini.cloneNode(true);
+    dragClone.className = 'mini-shape drag-clone';
+
+    // 4. 強制鎖死物理長寬，防止 position: fixed 造成的無限膨脹 (這就是滑鼠偏移的真兇)
+    dragClone.style.width = `${rect.width}px`;
+    dragClone.style.height = `${rect.height}px`;
+
+    dragClone.style.position = 'fixed';
+    dragClone.style.pointerEvents = 'none';
+    dragClone.style.zIndex = '9999';
+    dragClone.style.margin = '0';
+
     document.body.appendChild(dragClone);
     sourceEl.style.opacity = '0';
 
-    // 第一次點擊時，就根據設備決定是否要加上 Y 軸偏移量
-    const targetX = e.clientX;
-    const targetY = isTouchDrag ? e.clientY - 80 : e.clientY;
-    moveClone(targetX, targetY);
-}
+    // 5. 因為長寬被精準鎖死了，這裡除以2絕對會是完美的幾何正中心
+    const offsetX = rect.width / 2;
+    const touchOffsetY = isTouchDrag ? 80 : 0;
+    const offsetY = (rect.height / 2) + touchOffsetY;
 
+    draggingData.offsetX = offsetX;
+    draggingData.offsetY = offsetY;
+    draggingData.touchOffsetY = touchOffsetY;
+
+    moveClone(e.clientX, e.clientY);
+}
 function moveClone(x, y) {
     if (!dragClone) return;
-    dragClone.style.left = `${x}px`;
-    dragClone.style.top = `${y}px`;
+
+    // 扣除算好的偏移量，讓滑鼠完美對齊紅色框框的正中心
+    dragClone.style.left = `${x - draggingData.offsetX}px`;
+    dragClone.style.top = `${y - draggingData.offsetY}px`;
 }
+// 改用「中心點推算」來吸附網格
 function getSnappingTarget(shapeArr, mouseX, mouseY) {
     const boardEl = document.getElementById('board');
     const rect = boardEl.getBoundingClientRect();
-    const c = Math.floor((mouseX - rect.left) / CELL_SIZE);
-    const r = Math.floor((mouseY - rect.top) / CELL_SIZE);
 
+    // 1. 取得滑鼠在棋盤上的精準像素位置 (此時滑鼠就在小方塊的正中心)
+    const xOnBoard = mouseX - rect.left;
+    const yOnBoard = mouseY - rect.top;
+
+    // 2. 扣除「大方塊一半的長寬」，反推回陰影真正的左上角座標
+    const shapeWidth = shapeArr[0].length * CELL_SIZE;
+    const shapeHeight = shapeArr.length * CELL_SIZE;
+
+    const targetStartX = xOnBoard - (shapeWidth / 2);
+    const targetStartY = yOnBoard - (shapeHeight / 2);
+
+    // 3. 使用 Math.round 自動四捨五入到最近的網格 (統一對齊中心)
+    const c = Math.round(targetStartX / CELL_SIZE);
+    const r = Math.round(targetStartY / CELL_SIZE);
+
+    // 尋找最近的合法吸附點 (如果稍微放歪，系統會幫你吸進去)
     const offsets = [[0, 0], [0, -1], [-1, 0], [1, 0], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]];
 
     for (let [dr, dc] of offsets) {
@@ -285,14 +322,18 @@ function getSnappingTarget(shapeArr, mouseX, mouseY) {
 function onDragMove(e) {
     if (!draggingData) return;
 
-    // 如果是觸控，視覺座標向上提 80px，避開手指
     const targetX = e.clientX;
-    const targetY = isTouchDrag ? e.clientY - 80 : e.clientY;
+    const targetY = e.clientY;
 
+    // 1. 移動視覺上的小方塊 (已經內含了中心對齊與觸控的 Y 軸上提)
     moveClone(targetX, targetY);
 
-    // 磁吸判定的座標也要使用偏移後的 Y，這樣預覽區塊才會準確對齊浮空的方塊
-    const target = getSnappingTarget(draggingData.blockData.shape, targetX, targetY);
+    // 2. 邏輯上的磁吸判定
+    // 為了讓預覽陰影準確出現在小方塊的正下方，我們要把磁吸的計算點也跟著上提
+    const snapTargetY = targetY - draggingData.touchOffsetY;
+
+    // 將座標丟給先前的中心點吸附演算法 (getSnappingTarget 不用改)
+    const target = getSnappingTarget(draggingData.blockData.shape, targetX, snapTargetY);
 
     if (!currentPreviewTarget || !target || currentPreviewTarget.r !== target.r || currentPreviewTarget.c !== target.c) {
         currentPreviewTarget = target;
